@@ -4,112 +4,72 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <errno.h>
 #include <string.h>
-#include <sys/wait.h>
+#include <time.h>
 
-#define SHM_NAME "/ipc_shared_mem"
-#define FIFO_NAME "/tmp/ipc_fifo"
+#define SHM_NAME "/mi_memoria"
 #define SIZE 4096
 
 int main(int argc, char *argv[]) {
 
-    if(argc != 3){
-        printf("Uso: ./ipc n x\n");
-        exit(1);
+    if(argc != 2){
+        printf("Uso: ./ipc a|b\n");
+        return 1;
     }
 
-    int n = atoi(argv[1]);
-    char x = argv[2][0];
+    char letra = argv[1][0];
 
-    /* ---------- MEMORIA COMPARTIDA ---------- */
-
-    int created = 0;
-    int shm_fd = shm_open(SHM_NAME, O_CREAT | O_EXCL | O_RDWR, 0666);
-
-    if(shm_fd == -1){
-        if(errno == EEXIST){
-            shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
-            printf("Memoria ya existia\n");
-        } else {
-            perror("shm_open");
-            exit(1);
-        }
-    } else {
-        created = 1;
-        ftruncate(shm_fd, SIZE);
-        printf("Memoria creada por este proceso\n");
+    // abrir o crear memoria compartida
+    int fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    if(fd == -1){
+        perror("shm_open");
+        return 1;
     }
 
-    /* ---------- FIFO PARA ENVIAR FD ---------- */
+    // asignar tamaño
+    ftruncate(fd, SIZE);
 
-    mkfifo(FIFO_NAME, 0666);
-
-    if(created){
-        int fifo = open(FIFO_NAME, O_WRONLY);
-        write(fifo, &shm_fd, sizeof(int));
-        printf("Envié mi FD: %d\n", shm_fd);
-        close(fifo);
-    } else {
-        int fifo = open(FIFO_NAME, O_RDONLY);
-        int received_fd;
-        read(fifo, &received_fd, sizeof(int));
-        printf("Recibí FD: %d\n", received_fd);
-        close(fifo);
-    }
-
-    /* ---------- MAPEO ---------- */
-
-    char *ptr = mmap(NULL, SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-
+    // mapear memoria
+    void *ptr = mmap(NULL, SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if(ptr == MAP_FAILED){
         perror("mmap");
-        exit(1);
+        return 1;
     }
 
-    /* ---------- PIPE PADRE-HIJO ---------- */
+    // ----- AQUI ESTA EL CAMBIO IMPORTANTE -----
 
-    int p[2];
-    pipe(p);
+    // primer espacio: entero compartido (indice global)
+    int *pos = (int*) ptr;
 
-    pid_t pid = fork();
+    // despues del entero comienza el buffer real
+    char *data = (char*)ptr + sizeof(int);
 
-    if(pid > 0){ // PADRE
-        close(p[0]);
-
-        for(int i=0;i<SIZE;i++){
-            if(i % n == 0){
-                write(p[1], &x, 1);
-            }
-        }
-
-        close(p[1]);
-        wait(NULL);
-
-        printf("Contenido memoria:\n%s\n", ptr);
-    }
-    else{ // HIJO
-        close(p[1]);
-
-        char c;
-        int index=0;
-
-        while(read(p[0], &c, 1) > 0){
-            ptr[index++] = c;
-        }
-
-        ptr[index]='\0';
-        close(p[0]);
-        exit(0);
+    // si es la primera vez, inicializamos posicion
+    if(*pos == 0){
+        *pos = 0;
     }
 
-    /* ---------- LIMPIEZA ---------- */
+    srand(getpid());
+
+    // escribir 50 caracteres
+    for(int i = 0; i < 50; i++){
+
+        int index = *pos;          // leer posicion compartida
+        data[index] = letra;       // escribir
+        (*pos)++;                  // avanzar posicion global
+
+        usleep((rand() % 200) * 1000); // dormir random
+    }
+
+    sleep(1);
+
+    // solo uno imprime (el que llega de ultimo normalmente)
+    printf("\nContenido memoria:\n");
+    write(STDOUT_FILENO, data, *pos);
+    printf("\n");
 
     munmap(ptr, SIZE);
-    close(shm_fd);
-
-    if(created)
-        shm_unlink(SHM_NAME);
+    close(fd);
 
     return 0;
 }
