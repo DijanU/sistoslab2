@@ -1,20 +1,29 @@
+#include <stdio.h>
 #include <unistd.h>
-#include <sys/wait.h>
+#include <sys/types.h>
+#include <stdlib.h>
 
 int main(){
 
-    if(fork()==0){
-        execl("./ipc","ipc","5","a",NULL);
+    pid_t pid = fork();
+
+    if(pid < 0){
+        perror("fork");
+        exit(1);
     }
 
-    usleep(200000); // 0.2s para sincronizar
-
-    if(fork()==0){
-        execl("./ipc","ipc","7","b",NULL);
+    /* HIJO */
+    if(pid == 0){
+        execl("./ipc", "ipc", "a", NULL);
+        perror("execl hijo");
+        exit(1);
     }
-
-    wait(NULL);
-    wait(NULL);
+    /* PADRE */
+    else{
+        execl("./ipc", "ipc", "b", NULL);
+        perror("execl padre");
+        exit(1);
+    }
 
     return 0;
 }
