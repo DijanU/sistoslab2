@@ -1,22 +1,35 @@
 #include <stdio.h>
 #include <time.h>
 
+#define N 1000000
+
 int main() {
 
     clock_t inicio, fin;
     double tiempo;
 
-    inicio = clock();   // antes del primer for
+    inicio = clock();
 
-    for(long i = 0; i < 1000000; i++);
-    for(long i = 0; i < 1000000; i++);
-    for(long i = 0; i < 1000000; i++);
+    // Primer ciclo
+    for(long i = 0; i < N; i++){
+        printf("Ciclo 1: %ld\n", i);
+    }
 
-    fin = clock();      // después del último for
+    // Segundo ciclo
+    for(long i = 0; i < N; i++){
+        printf("Ciclo 2: %ld\n", i);
+    }
+
+    // Tercer ciclo
+    for(long i = 0; i < N; i++){
+        printf("Ciclo 3: %ld\n", i);
+    }
+
+    fin = clock();
 
     tiempo = (double)(fin - inicio) / CLOCKS_PER_SEC;
 
-    printf("Tiempo de ejecucion: %f segundos\n", tiempo);
+    printf("\nTiempo total: %f segundos\n", tiempo);
 
     return 0;
 }

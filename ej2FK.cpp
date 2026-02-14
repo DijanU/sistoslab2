@@ -1,45 +1,57 @@
 #include <stdio.h>
-#include <time.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <time.h>
+
+#define N 1000000
+
+void trabajo(char *nombre){
+    for(long i = 0; i < N; i++){
+        printf("%s: %ld\n", nombre, i);
+    }
+}
 
 int main(){
 
-    pid_t hijo, nieto, bisnieto;
+    pid_t p1, p2, p3;
     clock_t inicio, fin;
     double tiempo;
 
-    inicio = clock();   // antes del primer fork
+    inicio = clock();
 
-    hijo = fork();
+    p1 = fork();
 
-    if(hijo == 0){   // PROCESO HIJO
+    if(p1 == 0){
+        // HIJO
+        p2 = fork();
 
-        nieto = fork();
+        if(p2 == 0){
+            // NIETO
+            p3 = fork();
 
-        if(nieto == 0){   // PROCESO NIETO
-
-            bisnieto = fork();
-
-            if(bisnieto == 0){   // PROCESO BISNIETO
-                for(long i = 0; i < 1000000; i++);
+            if(p3 == 0){
+                // BISNIETO
+                trabajo("Bisnieto");
             }
             else{
-                for(long i = 0; i < 1000000; i++);
+                trabajo("Nieto");
                 wait(NULL);
             }
         }
         else{
-            for(long i = 0; i < 1000000; i++);
+            trabajo("Hijo");
             wait(NULL);
         }
     }
-    else{   // PROCESO PADRE (RAÍZ)
+    else{
+        // PADRE
+        trabajo("Padre");
         wait(NULL);
-        fin = clock();
 
+        fin = clock();
         tiempo = (double)(fin - inicio) / CLOCKS_PER_SEC;
-        printf("Tiempo concurrente: %f segundos\n", tiempo);
+
+        printf("\nTiempo total concurrente: %f segundos\n", tiempo);
     }
 
     return 0;
